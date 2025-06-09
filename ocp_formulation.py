@@ -4,7 +4,7 @@ from car_model import make_car_integrator
 from multiple_shooting import setup_multiple_shooting_ocp
 from track_constraints import track_constraints
 
-def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy'):
+def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', use_soft_track: bool = True):
     """
     Set up a complete CasADi NLP using multiple shooting (M3) for the Optimal Control Problem (OCP).
 
@@ -18,6 +18,8 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy'):
         Number of shooting intervals.
     objective : str
         Objective function type ('control_energy' or others).
+    use_soft_track : bool
+        If True, apply track constraint as soft penalty; otherwise as hard constraint.
 
     Returns
     -------
@@ -51,16 +53,20 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy'):
         for u in U_vars:
             J += ca.sumsqr(u) * (T / N)
 
-    # Add soft track constraint penalty
+    # Track constraints
     track_con = track_constraints()
-    for s in S_vars:
-        g_track = track_con(s)
-        J += 1e4 * ca.sumsqr(ca.fmax(0, g_track))
-
-    # Initialize constraints
     g = [F2, F3]
     lbg = [0] * F2.shape[0] + [-ca.inf] * F3.shape[0]
     ubg = [0] * F2.shape[0] + [0] * F3.shape[0]
+
+    for s in S_vars:
+        g_track = track_con(s)
+        if use_soft_track:
+            J += 1e4 * ca.sumsqr(ca.fmax(0, g_track))
+        else:
+            g.append(g_track)
+            lbg += [-ca.inf, -ca.inf]
+            ubg += [0, 0]
 
     # Terminal constraint: reach specific position at final state
     xf_target = ca.DM([130, 0])
@@ -84,7 +90,7 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy'):
 # Example usage
 if __name__ == '__main__':
     gear, dt, N = 2, 0.1, 50
-    solver, nlp, integrator = setup_ocp(gear, dt, N)
+    solver, nlp, integrator = setup_ocp(gear, dt, N, use_soft_track=True)
 
     # Initial guess and bounds
     w0 = [0] * (nlp['x'].shape[0] - 1) + [7.0]  # initial T guess
