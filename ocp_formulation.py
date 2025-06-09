@@ -2,10 +2,11 @@
 import casadi as ca
 from car_model import make_car_integrator
 from multiple_shooting import setup_multiple_shooting_ocp
+from track_constraints import track_constraints
 
 def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy'):
     """
-    Set up a complete CasADi NLP for the Optimal Control Problem (OCP).
+    Set up a complete CasADi NLP using multiple shooting (M3) for the Optimal Control Problem (OCP).
 
     Parameters
     ----------
@@ -46,8 +47,18 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy'):
         for u in U_vars:
             J += ca.sumsqr(u)
 
-    # Combine constraints
-    g = ca.vertcat(F2, F3)
+    # Initialize constraints
+    g, lbg, ubg = [F2, F3], [0]*F2.shape[0] + [-ca.inf]*F3.shape[0], [0]*F2.shape[0] + [0]*F3.shape[0]
+
+    # Add track (path) constraints
+    track_con = track_constraints()
+    for s in S_vars:
+        g.append(track_con(s))
+        lbg += [-ca.inf, -ca.inf]
+        ubg += [0, 0]
+
+    # Combine all constraints
+    g = ca.vertcat(*g)
 
     # NLP formulation
     nlp_dict = {'x': w, 'f': J, 'g': g}
