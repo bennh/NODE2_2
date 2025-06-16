@@ -73,6 +73,12 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', u
             lbg += [-ca.inf, -ca.inf]
             ubg += [0, 0]
 
+    # Initial state constraint: s_0 = x0
+    x0 = ca.DM([-30, 0, 10, 0, 0, 0, 0]) 
+    g.insert(0, S_vars[0] - x0)           
+    lbg = [0] * nx + lbg                  
+    ubg = [0] * nx + ubg                 
+    
     # Terminal constraint: reach specific position at final state
     xf_target = ca.DM([130, 0])
     terminal = X_end[-1][0:2] - xf_target
