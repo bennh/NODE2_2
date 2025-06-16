@@ -54,7 +54,7 @@ def setup_multiple_shooting_ocp(
     P_var = ca.MX.sym('p', n_params) if n_params > 0 else None
     T_var = ca.MX.sym('T') if use_final_time else None
 
-    # For w:  [s_0, ..., s_{N-1}, u_0, ..., u_{N-1}, (p), (T)]
+    # Collect decision variables
     w_list = S_vars + U_vars
     if P_var is not None:
         w_list.append(P_var)
@@ -62,13 +62,16 @@ def setup_multiple_shooting_ocp(
         w_list.append(T_var)
     w = ca.vertcat(*w_list)
 
-    # Collect interval endpoints, continuity constraints
+    # Compute integration intervals
     X_end, F2_terms = [], []
     for i in range(N):
-        # Pack integrator parameters: usually [control, (params), (T)]
-        p_i = U_vars[i]  # nu=3
+        # dt = T / N
+        if T_var is not None:
+            dt_i = T_var / N
+            p_i = ca.vertcat(U_vars[i], dt_i)  # u and dt
+        else:
+            p_i = U_vars[i]  # fallback
 
-        # Call CasADi integrator
         res = integrator(x0=S_vars[i], p=p_i)
         x_end = res['xf']
         X_end.append(x_end)
@@ -77,13 +80,12 @@ def setup_multiple_shooting_ocp(
 
     F2 = ca.vertcat(*F2_terms) if F2_terms else ca.MX.zeros(0)
 
-    # Collect inequality constraints (F3)
+    # Inequality constraints
     F3_list = []
     if enforce_state_nonneg:
         for s in S_vars:
             F3_list.append(s)
     if enforce_control_bounds is not None:
-        # enforce_control_bounds: list of (lb, ub) for each control variable
         for u in U_vars:
             for j, (lb, ub) in enumerate(enforce_control_bounds):
                 if lb is not None:
