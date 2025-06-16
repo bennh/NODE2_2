@@ -65,7 +65,7 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', u
     ubg = [0] * F2.shape[0] + [0] * F3.shape[0]
 
     for s in S_vars:
-        g_track = track_con(s)
+        g_track = track_con(s[0:2])  
         if use_soft_track:
             J += 1e4 * ca.sumsqr(ca.fmax(0, g_track))
         else:
