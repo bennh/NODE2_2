@@ -91,21 +91,3 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', u
     solver = ca.nlpsol('solver', 'ipopt', nlp_dict, solver_opts)
 
     return solver, nlp_dict, integrator
-
-# Example usage
-if __name__ == '__main__':
-    gear, dt, N = 2, 0.1, 50
-    solver, nlp, integrator = setup_ocp(gear, dt, N, use_soft_track=True)
-
-    # Initial guess and bounds
-    w0 = [0] * (nlp['x'].shape[0] - 1) + [7.0]  # initial T guess
-    lbw = [-ca.inf] * (nlp['x'].shape[0] - 1) + [1.0]
-    ubw = [ca.inf] * (nlp['x'].shape[0] - 1) + [20.0]
-
-    lbg = [0] * nlp['g'].shape[0]
-    ubg = [0] * nlp['g'].shape[0]
-
-    # Solve NLP
-    solution = solver(x0=w0, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
-
-    print("Optimal solution:", solution['x'])
