@@ -82,7 +82,7 @@ def make_car_integrator(gear: int) -> ca.Function:
 
     # Create integrator with symbolic dt
     ode = {'x': x, 'p': ca.vertcat(u, dt), 'ode': rhs}
-    opts = {'tf': dt}  
+    opts = {'tf': 1.0} 
     integrator = ca.integrator('car_integrator', 'rk', ode, opts)
     
     return integrator
