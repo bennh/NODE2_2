@@ -54,7 +54,7 @@ def plot_trajectory(X, T, track=True, title='Trajectory with Track Constraints')
     cx, cy = X[:, 0], X[:, 1]
 
     plt.figure(figsize=(10, 4))
-    plt.plot(cx, cy, 'k-', linewidth=2, label='Vehicle trajectory')
+    plt.plot(cx, cy, 'k-', linewidth=3, label='Vehicle trajectory')
 
     if track:
         x_plot = np.linspace(-30, 140, 500)
