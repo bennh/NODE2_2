@@ -41,7 +41,12 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', u
 
     # Setup multiple shooting OCP
     w, X_end, F2, F3, S_vars, U_vars, _, _ = setup_multiple_shooting_ocp(
-        integrator, t_shooting, nx, nu, use_final_time=True
+        integrator,
+        t_shooting,
+        nx,
+        nu,
+        use_final_time=True,
+        enforce_control_bounds=[(-0.5, 0.5), (0, 15000), (0, 1)]
     )
 
     # Extract T_var from decision variable vector
