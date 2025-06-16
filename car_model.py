@@ -18,8 +18,17 @@ def make_car_integrator(gear: int) -> ca.Function:
     p = ca.vertcat(u, dt)
 
     # State unpacking
-    cx, cy, v, delta, beta, psi, wz = x[0:7]
-    wd, FB, f = u[0:3]
+    cx = x[0]
+    cy = x[1]
+    v = x[2]
+    delta = x[3]
+    beta = x[4]
+    psi = x[5]
+    wz = x[6]
+
+    wd = u[0]
+    FB = u[1]
+    f = u[2]
 
     # Vehicle parameters
     m = 1239
