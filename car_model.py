@@ -81,8 +81,8 @@ def make_car_integrator(gear: int) -> ca.Function:
     )
 
     # Create integrator with symbolic dt
-    ode = {'x': x, 'p': p, 'ode': rhs}
-    opts = {'tf': 1.0}  # Time scaling via dt included in p
+    ode = {'x': x, 'p': ca.vertcat(u, dt), 'ode': rhs}
+    opts = {'tf': 1.0}
     integrator = ca.integrator('car_integrator', 'rk', ode, opts)
-
+    
     return integrator
