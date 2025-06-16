@@ -40,7 +40,7 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', u
     integrator = make_car_integrator(gear) 
 
     # Setup multiple shooting OCP
-    w, X_end, F2, F3, S_vars, U_vars, _, _ = setup_multiple_shooting_ocp(
+    w, X_end, F2, F3, S_vars, U_vars, _, T_var = setup_multiple_shooting_ocp(
         integrator,
         t_shooting,
         nx,
