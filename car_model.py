@@ -80,9 +80,18 @@ def make_car_integrator(gear: int) -> ca.Function:
         (Fsf * lf * ca.cos(delta) - Fsr * lr - rho * eSP + Flf * lf * ca.sin(delta)) / Izz
     )
 
-    # Create integrator with symbolic dt
-    ode = {'x': x, 'p': ca.vertcat(u, dt), 'ode': rhs}
-    opts = {'tf': 1.0} 
-    integrator = ca.integrator('car_integrator', 'rk', ode, opts)
-    
+     # 构建底层 integrator（不设置 tf）
+    ode = {'x': x, 'p': u, 'ode': rhs}
+    F_raw = ca.integrator('car_integrator_raw', 'rk', ode)
+
+    # 构建 wrapper function: 输入 x0 和 p=[u; dt]，输出 xf
+    x0 = ca.MX.sym('x0', 7)
+    p_full = ca.MX.sym('p', 4)  # u1, u2, u3, dt
+    u = p_full[0:3]
+    dt = p_full[3]
+
+    res = F_raw(x0=x0, p=u, t0=0, tf=dt)
+    x_next = res['xf']
+    integrator = ca.Function('car_integrator', [x0, p_full], [x_next])
+
     return integrator
