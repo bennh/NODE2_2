@@ -66,13 +66,7 @@ def setup_multiple_shooting_ocp(
     X_end, F2_terms = [], []
     for i in range(N):
         # Pack integrator parameters: usually [control, (params), (T)]
-        # You can change to match your integrator signature
-        p_args = [U_vars[i]]
-        if P_var is not None:
-            p_args.append(P_var)
-        if T_var is not None:
-            p_args.append(T_var)
-        p_i = ca.vertcat(*p_args) if len(p_args) > 1 else p_args[0]
+        p_i = U_vars[i]  # nu=3
 
         # Call CasADi integrator
         res = integrator(x0=S_vars[i], p=p_i)
