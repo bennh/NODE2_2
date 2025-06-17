@@ -52,10 +52,10 @@ def setup_multiple_shooting_ocp(
     if enforce_control_bounds is not None:
         for u in U_vars:
             for j, (lb, ub) in enumerate(enforce_control_bounds):
-                if lb is not None:
-                    F3_list.append(u[j] - lb)
                 if ub is not None:
-                    F3_list.append(ub - u[j])
+                    F3_list.append(u[j] - ub)
+                if lb is not None:
+                    F3_list.append(lb - u[j])
     if enforce_param_nonneg and P_var is not None:
         F3_list.append(P_var)
     F3 = ca.vertcat(*F3_list) if F3_list else ca.MX()

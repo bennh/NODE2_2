@@ -1,5 +1,6 @@
 import casadi as ca
 
+
 def make_car_integrator(gear: int) -> ca.Function:
     """
     Create CasADi integrator for the car model with time-scaled input.
@@ -15,11 +16,12 @@ def make_car_integrator(gear: int) -> ca.Function:
         Function F(x0, p) → x_next, where p = [wd, FB, f, dt]
     """
     # Symbolic variables
-    x = ca.MX.sym('x', 7)  # [cx, cy, v, delta, beta, psi, wz]
-    p = ca.MX.sym('p', 4)  # [wd, FB, f, dt]
+    x0 = ca.MX.sym('x', 7)  # [cx, cy, v, delta, beta, psi, wz]
+    u = ca.MX.sym('u', 3)  # [wd, FB, f]
+    dt = ca.MX.sym('dt')
 
-    wd, FB, f, dt = p[0], p[1], p[2], p[3]
-    cx, cy, v, delta, beta, psi, wz = x[0], x[1], x[2], x[3], x[4], x[5], x[6]
+    wd, FB, f = u[0], u[1], u[2]
+    cx, cy, v, delta, beta, psi, wz = x0[0], x0[1], x0[2], x0[3], x0[4], x0[5], x0[6]
 
     # Vehicle parameters
     m = 1239
@@ -49,9 +51,9 @@ def make_car_integrator(gear: int) -> ca.Function:
     # Braking and resistance forces
     FBf = (2 / 3) * FB
     FBr = (1 / 3) * FB
-    FRf = (m * lr * g / (lf + lr)) * (0.009 + 0.002 * v / 100 + 0.0003 * (v / 100)**4)
-    FRr = (m * lf * g / (lf + lr)) * (0.009 + 0.002 * v / 100 + 0.0003 * (v / 100)**4)
-    FAx = 0.5 * cw * rho * A * v**2
+    FRf = (m * lr * g / (lf + lr)) * (0.009 + 0.002 * v / 100 + 0.0003 * (v / 100) ** 4)
+    FRr = (m * lf * g / (lf + lr)) * (0.009 + 0.002 * v / 100 + 0.0003 * (v / 100) ** 4)
+    FAx = 0.5 * cw * rho * A * v ** 2
 
     # Engine model
     w_mot = igm * it * v / R
@@ -78,11 +80,17 @@ def make_car_integrator(gear: int) -> ca.Function:
         (Fsf * lf * ca.cos(delta) - Fsr * lr + Flf * lf * ca.sin(delta)) / Izz
     )
 
-    # CasADi integrator
-    ode = {'x': x, 'p': p, 'ode': rhs}
-    opts = {}  # tf is dynamic
-    integrator = ca.integrator('car_integrator', 'rk', ode, opts)
-    return integrator
+    # 把 RHS 包装成一个小函数 f_rhs(x,u)->rhs
+    f_rhs = ca.Function('f_rhs', [x0, u], [rhs])
+
+    # RK4
+    k1 = f_rhs(x0, u)
+    k2 = f_rhs(x0 + dt / 2 * k1, u)
+    k3 = f_rhs(x0 + dt / 2 * k2, u)
+    k4 = f_rhs(x0 + dt * k3, u)
+
+    x1 = x0 + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+    return ca.Function('car_integrator', [x0, u, dt], [x1])
 
 
 def make_scaled_integrator(gear: int) -> ca.Function:
@@ -91,9 +99,12 @@ def make_scaled_integrator(gear: int) -> ca.Function:
     x0 = ca.MX.sym('x0', 7)
     u = ca.MX.sym('u', 3)
     dt = ca.MX.sym('dt')
-    p = ca.vertcat(u, 1.0)  # tf=1.0 ⇒ unit time step
+    # 1) 把 u 和 dt 拼成 base_integrator 期望的 4 维 p
+    p_full = ca.vertcat(u, dt)  # [wd, FB, phi, dt]
 
-    x1_unit = base_integrator(x0=x0, p=p)['xf']
-    x1_scaled = x0 + dt * (x1_unit - x0)  # Linear time-scaling
+    # 2) base_integrator 在“1 秒”里跑一次
+    x1_unit = base_integrator(x0=x0, p=p_full)['xf']
 
+    # 3) 线性时间缩放到 dt
+    x1_scaled = x0 + dt * (x1_unit - x0)
     return ca.Function('scaled_integrator', [x0, u, dt], [x1_scaled])

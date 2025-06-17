@@ -1,10 +1,13 @@
 # ocp_formulation.py
 import casadi as ca
+from SQPsolver import sqp_solver
 from car_model import make_car_integrator, make_scaled_integrator
 from multiple_shooting import setup_multiple_shooting_ocp
 from track_constraints import track_constraints
 
-def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', use_soft_track: bool = True):
+
+def setup_ocp(x_init: list, gear: int, dt: float, N: int, objective: str = 'control_energy',
+              use_soft_track: bool = False):
     """
     Set up a complete CasADi NLP using multiple shooting (M3) for the Optimal Control Problem (OCP).
 
@@ -37,26 +40,26 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', u
     t_shooting = [i / N for i in range(N + 1)]  # Normalized shooting points
 
     # Create integrator (scaled by dt placeholder)
-    integrator = make_scaled_integrator(gear)  # unit dt, scaled later by T_var
+    integrator = make_car_integrator(gear)  # unit dt, scaled later by T_var
 
     # Setup multiple shooting OCP
     w, X_end, F2, F3, S_vars, U_vars, _, _ = setup_multiple_shooting_ocp(
-    integrator,
-    t_shooting,
-    nx,
-    nu,
-    use_final_time=True,
-    enforce_control_bounds=[(-0.5, 0.5), (0, 15000), (0, 1)]
+        integrator,
+        t_shooting,
+        nx,
+        nu,
+        use_final_time=True,
+        enforce_control_bounds=[(-0.5, 0.5), (0, 15000), (0, 1)]
     )
 
     # Extract T_var from decision variable vector
     T = w[-1]  # final variable is T
 
     # Objective function
-    J = 0
+    J = T
     if objective == 'control_energy':
-        for u in U_vars:
-            J += ca.sumsqr(u) * (T / N)
+        w_ds = ca.vertcat(*[w[i * nx + 3] for i in range(N)])
+        J += ca.sumsqr(w_ds) * (T / N)
 
     # Track constraints
     track_con = track_constraints()
@@ -65,7 +68,7 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', u
     ubg = [0] * F2.shape[0] + [0] * F3.shape[0]
 
     for s in S_vars:
-        g_track = track_con(s[0:2])  
+        g_track = track_con(s[0:2])
         if use_soft_track:
             J += 1e4 * ca.sumsqr(ca.fmax(0, g_track))
         else:
@@ -74,17 +77,18 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', u
             ubg += [0, 0]
 
     # Initial state constraint: s_0 = x0
-    x0 = ca.DM([-30, 0, 10, 0, 0, 0, 0]) 
-    g.insert(0, S_vars[0] - x0)           
-    lbg = [0] * nx + lbg                  
-    ubg = [0] * nx + ubg                 
-    
+    x0 = ca.DM(x_init)
+    g.insert(0, S_vars[0] - x0)
+    lbg = [0] * nx + lbg
+    ubg = [0] * nx + ubg
+
     # Terminal constraint: reach specific position at final state
-    xf_target = ca.DM([130, 0])
-    terminal = X_end[-1][0:2] - xf_target
-    g.append(terminal)
-    lbg += [-1.0, -1.0]
-    ubg += [1.0, 1.0]
+    terminal_x = X_end[-1][0] - 140
+    terminal_psi = X_end[-1][5] - 0
+    g.append(terminal_x)
+    g.append(terminal_psi)
+    lbg += [0.0, 0.0]
+    ubg += [0.0, 0.0]
 
     # Combine all constraints
     g = ca.vertcat(*g)
@@ -94,15 +98,25 @@ def setup_ocp(gear: int, dt: float, N: int, objective: str = 'control_energy', u
 
     # Solver configuration
     solver_opts = {
-    'ipopt.print_level': 5,
-    'print_time': True,
-    'ipopt.tol': 1e-4,  # main tol
-    'ipopt.constr_viol_tol': 1e-4,  # con tol
-    'ipopt.acceptable_tol': 1e-2,
-    'ipopt.acceptable_constr_viol_tol': 1e-2,
-    'ipopt.acceptable_iter': 5,
-    'ipopt.max_iter': 50
-     }
+        'ipopt.print_level': 5,
+        'print_time': True,
+        'ipopt.tol': 1e-4,  # main tol
+        'ipopt.constr_viol_tol': 1e-4,  # con tol
+        'ipopt.max_iter': 10000
+    }
     solver = ca.nlpsol('solver', 'ipopt', nlp_dict, solver_opts)
+
+    # # Call custom SQP solver
+    # solver_opts = sqp_solver(
+    #     x=w,
+    #     f=J,
+    #     g=g,
+    #     lbx=None,
+    #     ubx=None,
+    #     lbg=lbg,
+    #     ubg=ubg,
+    #     max_iter=1000,
+    #     tol=1e-4
+    # )
 
     return solver, nlp_dict, integrator, lbg, ubg
