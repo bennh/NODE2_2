@@ -35,6 +35,7 @@ project2_car_ocp/
 
 ## Team Contributions
 
+```text
 | Member     | Contribution                                                                                     |
 |------------|--------------------------------------------------------------------------------------------------|
 | **Fan, Siqing** | Built the custom SQP solver (`sqp_solver.py`) for Milestone 4, and handled initial guess generation, final testing, and result visualization in `main.ipynb`. |
