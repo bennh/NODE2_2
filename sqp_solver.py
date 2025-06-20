@@ -52,11 +52,11 @@ class SQPSolver:
             qp = {'x': p,
                   'f': 0.5 * ca.mtimes([p.T, Hk, p]) + ca.dot(grad, p),
                   'g': jac_g @ p}
-            qp_opts = {'printLevel': 'low', 'nWSR': 10000, 'error_on_fail': False}
+            qp_opts = {'printLevel': 'none', 'nWSR': 10000, 'error_on_fail': False}
             qpsolver = ca.qpsol('qpsol', 'qpoases', qp, qp_opts)
             qp_res = qpsolver(
                 lbg=self.lbg, ubg=self.ubg,
-                lbx=self.lbx, ubx=self.ubx
+                lbx=self.lbx - xk, ubx=self.ubx - xk
             )
 
             pk = qp_res['x'].full().flatten()

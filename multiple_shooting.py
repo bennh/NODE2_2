@@ -44,6 +44,8 @@ def setup_multiple_shooting_ocp(
         res = integrator(S_vars[i], U_vars[i], dt_i)
         x_end = res
         X_end.append(x_end)
+        if i==0:
+            F2_terms.append(x_end-S_vars[0])
         if i < N - 1:
             F2_terms.append(x_end - S_vars[i + 1])
     F2 = ca.vertcat(*F2_terms) if F2_terms else ca.MX()

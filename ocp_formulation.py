@@ -71,11 +71,11 @@ def setup_ocp(x_init: list, gear: int, N: int, solver: str = 'ipopt',
     #     pl_val = Pl_expr(w[i * nx])
     #     pu_val = Pu_expr(w[i * nx])
     #     lbw[i * nx + 1], ubw[i * nx + 1] = pl_val, pu_val
-    # for i in range(N):
-    #     ctrl_base = nx * N + i * nu
-    #     lbw[ctrl_base], ubw[ctrl_base] = -0.5, 0.5
-    #     lbw[ctrl_base + 1], ubw[ctrl_base + 1] = 0, 15000
-    #     lbw[ctrl_base + 2], ubw[ctrl_base + 2] = 0, 1
+    for i in range(N):
+        ctrl_base = nx * N + i * nu
+        lbw[ctrl_base], ubw[ctrl_base] = -0.5, 0.5
+        lbw[ctrl_base + 1], ubw[ctrl_base + 1] = 0, 15000
+        lbw[ctrl_base + 2], ubw[ctrl_base + 2] = 0, 1
 
     for s in S_vars:
         g_track = track_con(s[0:2])
