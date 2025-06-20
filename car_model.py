@@ -99,11 +99,9 @@ def make_scaled_integrator(gear: int) -> ca.Function:
     x0 = ca.MX.sym('x0', 7)
     u = ca.MX.sym('u', 3)
     dt = ca.MX.sym('dt')
-    # 1) 把 u 和 dt 拼成 base_integrator 期望的 4 维 p
-    p_full = ca.vertcat(u, dt)  # [wd, FB, phi, dt]
 
     # 2) base_integrator 在“1 秒”里跑一次
-    x1_unit = base_integrator(x0=x0, p=p_full)['xf']
+    x1_unit = base_integrator(x0, u, dt)
 
     # 3) 线性时间缩放到 dt
     x1_scaled = x0 + dt * (x1_unit - x0)

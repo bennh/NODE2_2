@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from track_constraints import Pl_vis, Pu_vis
 from car_model import make_car_integrator
-from scipy.interpolate import CubicSpline
+from scipy.interpolate import CubicSpline, BSpline
 
 
 def unpack_solution(w_opt, N, integrator, nx=7, nu=3):

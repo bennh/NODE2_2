@@ -1,91 +1,82 @@
-# sqp_solver.py
 import casadi as ca
 import numpy as np
-import matplotlib.pyplot as plt
+from track_constraints import Pl_expr, Pu_expr
+
 
 class SQPSolver:
-    def __init__(self, nlp, w0, lbw, ubw, lbg, ubg, max_iter=50, tol=1e-6):
-        self.nlp = nlp
-        self.w = w0
-        self.lbw = lbw
-        self.ubw = ubw
+    def __init__(self, name, solver_type, nlp_dict, lbx, ubx, lbg, ubg, solver_opts=None):
+        # NLP结构体
+        self.x = nlp_dict['x']
+        self.f = nlp_dict['f']
+        self.g = nlp_dict['g']
+        self.opts = solver_opts or {}
+        self.lbx = lbx
+        self.ubx = ubx
         self.lbg = lbg
         self.ubg = ubg
-        self.max_iter = max_iter
-        self.tol = tol
 
-        # CasADi functions
-        self.F = ca.Function('F', [nlp['x']], [nlp['f'], nlp['g']])
-        self.Jac = self.F.jacobian()
-        self.HessLag = ca.Function('HessLag', [nlp['x'], ca.MX.sym('lam', nlp['g'].size(1))],
-                                   [ca.hessian(nlp['f'] + ca.dot(nlp['g'], ca.MX.sym('lam', nlp['g'].size(1))), nlp['x'])[0]])
+        # 预编译函数
+        self.f_fun = ca.Function('f', [self.x], [self.f])
+        self.g_fun = ca.Function('g', [self.x], [self.g])
+        self.grad_f_fun = ca.Function('grad_f', [self.x], [ca.gradient(self.f, self.x)])
+        self.jac_g_fun = ca.Function('jac_g', [self.x], [ca.jacobian(self.g, self.x)])
+        self.hess_fun = ca.Function('hess_l', [self.x], [ca.hessian(self.f, self.x)[0]])
 
-        self.iterations = []
-        self.objective_history = []
+        # 拉格朗日乘子符号（和g一样长）
+        self.lam_g = ca.MX.sym('lam_g', self.g.size1())
+        self.lam_x = ca.MX.sym('lam_x', self.x.size1())  # 注意size1()返回行数
+        # 拉格朗日函数
+        self.L = self.f + ca.dot(self.lam_g, self.g)
+        # 拉格朗日Hessian函数（参数依次为x, lam_g）
+        self.hess_lagrangian_fun = ca.Function('hess_l', [self.x, self.lam_g], [ca.hessian(self.L, self.x)[0]])
 
-    def solve(self):
-        w = self.w.copy()
+    def __call__(self, **kwargs):
+        x0 = np.array(kwargs.get('x0')).flatten()
 
-        for k in range(self.max_iter):
-            # Evaluate objective and constraints
-            f_val, g_val = self.F(w)
+        max_iter = self.opts.get('ipopt.max_iter', 100)
+        tol = self.opts.get('ipopt.tol', 1e-6)
 
-            # Jacobian
-            J_f, J_g = self.Jac(w)
+        xk = x0.copy()
+        lam_gk = np.zeros(self.g_fun(xk).shape[0])
+        for it in range(max_iter):
+            grad = self.grad_f_fun(xk).full().flatten()
+            gval = self.g_fun(xk).full().flatten()
+            jac_g = self.jac_g_fun(xk).full()
+            # 用当前乘子计算拉格朗日Hessian
+            Hk = self.hess_lagrangian_fun(xk, lam_gk).full()
+            p = ca.MX.sym('p', xk.size)
+            Hk = ca.DM(Hk)
+            grad = ca.DM(grad)
+            jac_g = ca.DM(jac_g)
 
-            # Hessian of the Lagrangian (simplified, using f only)
-            H = self.HessLag(w, np.zeros_like(g_val))
+            qp = {'x': p,
+                  'f': 0.5 * ca.mtimes([p.T, Hk, p]) + ca.dot(grad, p),
+                  'g': jac_g @ p}
+            qp_opts = {'printLevel': 'low', 'nWSR': 10000, 'error_on_fail': False}
+            qpsolver = ca.qpsol('qpsol', 'qpoases', qp, qp_opts)
+            qp_res = qpsolver(
+                lbg=self.lbg, ubg=self.ubg,
+                lbx=self.lbx, ubx=self.ubx
+            )
 
-            # Solve QP subproblem (simplified approach)
-            qp = {'h': H, 'a': J_g, 'g': J_f.T}
-            S = ca.qpsol('S', 'qpoases', qp)
-            sol = S(lbx=self.lbw - w, ubx=self.ubw - w,
-                    lba=self.lbg - g_val, uba=self.ubg - g_val)
+            pk = qp_res['x'].full().flatten()
+            # 更新拉格朗日乘子
+            lam_gk = qp_res['lam_g'].full().flatten() if 'lam_g' in qp_res else lam_gk
+            xk1 = xk + pk
 
-            dw = sol['x'].full().flatten()
-            lam = sol['lam_a'].full().flatten()
-
-            # Update w
-            w += dw
-
-            # Logging
-            obj_val = float(f_val)
-            constraint_violation = np.linalg.norm(g_val, np.inf)
-            self.iterations.append(k)
-            self.objective_history.append(obj_val)
-
-            print(f"Iter {k}: Obj = {obj_val:.6f}, Constr Viol = {constraint_violation:.3e}")
-
-            # Check convergence
-            if np.linalg.norm(dw, np.inf) < self.tol and constraint_violation < self.tol:
-                print("SQP converged.")
+            if np.linalg.norm(pk) < tol:
                 break
+            xk = xk1
 
-        return w, lam
-
-    def plot_convergence(self):
-        plt.figure()
-        plt.plot(self.iterations, self.objective_history, '-o')
-        plt.xlabel('Iteration')
-        plt.ylabel('Objective value')
-        plt.title('SQP Convergence History')
-        plt.grid(True)
-        plt.show()
+        return {
+            'x': xk,
+            'f': self.f_fun(xk).full().item(),
+            'g': self.g_fun(xk).full().flatten(),
+            'success': True,
+            'status': 0,
+            'iterations': it + 1,
+        }
 
 
-# Example usage
-if __name__ == '__main__':
-    from ocp_formulation import setup_ocp
-
-    gear, dt, N = 2, 0.1, 50
-    solver, nlp, _ = setup_ocp(gear, dt, N)
-
-    w0 = np.zeros(nlp['x'].shape[0])
-    lbw = -np.inf * np.ones(nlp['x'].shape[0])
-    ubw = np.inf * np.ones(nlp['x'].shape[0])
-    lbg = np.zeros(nlp['g'].shape[0])
-    ubg = np.zeros(nlp['g'].shape[0])
-
-    sqp_solver = SQPSolver(nlp, w0, lbw, ubw, lbg, ubg)
-    w_opt, lam_opt = sqp_solver.solve()
-    sqp_solver.plot_convergence()
+def sqp_solver(name, solver_type, nlp_dict, lbx, ubx, lbg, ubg, solver_opts=None):
+    return SQPSolver(name, solver_type, nlp_dict, lbx, ubx, lbg, ubg, solver_opts)

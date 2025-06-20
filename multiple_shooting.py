@@ -1,16 +1,20 @@
 import casadi as ca
-from typing import Callable, List, Tuple, Optional
+from track_constraints import Pl_expr, Pu_expr
+from typing import List, Tuple, Optional
+
+B = 1.5
+
 
 def setup_multiple_shooting_ocp(
-    integrator: ca.Function,
-    t_shooting: List[float],
-    nx: int,
-    nu: int,
-    n_params: int = 0,
-    use_final_time: bool = False,
-    enforce_state_nonneg: bool = False,
-    enforce_control_bounds: Optional[List[Tuple[float, float]]] = None,
-    enforce_param_nonneg: bool = False
+        integrator: ca.Function,
+        t_shooting: List[float],
+        nx: int,
+        nu: int,
+        n_params: int = 0,
+        use_final_time: bool = False,
+        enforce_state_nonneg: bool = False,
+        enforce_control_bounds: Optional[List[Tuple[float, float]]] = None,
+        enforce_param_nonneg: bool = False
 ) -> Tuple[ca.MX, List[ca.MX], ca.MX, ca.MX, List[ca.MX], List[ca.MX], Optional[ca.MX], Optional[ca.MX]]:
     """
     Set up a direct multiple shooting discretization for optimal control problems,
@@ -49,13 +53,15 @@ def setup_multiple_shooting_ocp(
     if enforce_state_nonneg:
         for s in S_vars:
             F3_list.append(s)
-    if enforce_control_bounds is not None:
-        for u in U_vars:
-            for j, (lb, ub) in enumerate(enforce_control_bounds):
-                if ub is not None:
-                    F3_list.append(u[j] - ub)
-                if lb is not None:
-                    F3_list.append(lb - u[j])
+    for s in S_vars:
+        F3_list.append(s[1] - Pu_expr(s[0]) + B / 2)
+        F3_list.append(Pl_expr(s[0]) - s[1] + B / 2)
+    for u in U_vars:
+        for j, (lb, ub) in enumerate(enforce_control_bounds):
+            if ub is not None:
+                F3_list.append(u[j] - ub)
+            if lb is not None:
+                F3_list.append(lb - u[j])
     if enforce_param_nonneg and P_var is not None:
         F3_list.append(P_var)
     F3 = ca.vertcat(*F3_list) if F3_list else ca.MX()

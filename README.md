@@ -12,8 +12,5 @@ project2_car_ocp/
 ├── ocp_formulation.py            # OCP组装与CasADi问题描述
 ├── sqp_solver.py                 # 自实现的SQP算法
 │
-├── utils.py                      # 通用工具函数（如初始化、可视化）
+├── utils.py                      # 通用工具函数（如初始化、可视化、滑块）
 │
-├── data/                         # 存放参数表、赛道数据等
-├── results/                      # 保存仿真结果、图片等
-└── figures/                      # 保存用于presentation的图片

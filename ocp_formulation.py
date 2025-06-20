@@ -1,12 +1,12 @@
 # ocp_formulation.py
 import casadi as ca
-from SQPsolver import sqp_solver
+from sqp_solver import sqp_solver
 from car_model import make_car_integrator, make_scaled_integrator
 from multiple_shooting import setup_multiple_shooting_ocp
-from track_constraints import track_constraints
+from track_constraints import track_constraints, Pl_expr, Pu_expr
 
 
-def setup_ocp(x_init: list, gear: int, dt: float, N: int, objective: str = 'control_energy',
+def setup_ocp(x_init: list, gear: int, N: int, solver: str = 'ipopt',
               use_soft_track: bool = False):
     """
     Set up a complete CasADi NLP using multiple shooting (M3) for the Optimal Control Problem (OCP).
@@ -36,7 +36,6 @@ def setup_ocp(x_init: list, gear: int, dt: float, N: int, objective: str = 'cont
     nx, nu = 7, 3  # State and control dimensions
 
     # Create symbolic final time T
-    T_var = ca.MX.sym('T')
     t_shooting = [i / N for i in range(N + 1)]  # Normalized shooting points
 
     # Create integrator (scaled by dt placeholder)
@@ -57,15 +56,26 @@ def setup_ocp(x_init: list, gear: int, dt: float, N: int, objective: str = 'cont
 
     # Objective function
     J = T
-    if objective == 'control_energy':
-        w_ds = ca.vertcat(*[w[i * nx + 3] for i in range(N)])
-        J += ca.sumsqr(w_ds) * (T / N)
+    w_ds = ca.vertcat(*[w[i * nx + 3] for i in range(N)])
+    J += ca.sumsqr(w_ds) * (T / N)
 
     # Track constraints
     track_con = track_constraints()
     g = [F2, F3]
     lbg = [0] * F2.shape[0] + [-ca.inf] * F3.shape[0]
     ubg = [0] * F2.shape[0] + [0] * F3.shape[0]
+
+    lbw = [-ca.inf] * (w.shape[0] - 1) + [0.0]
+    ubw = [ca.inf] * (w.shape[0] - 1) + [20.0]
+    # for i in range(N):
+    #     pl_val = Pl_expr(w[i * nx])
+    #     pu_val = Pu_expr(w[i * nx])
+    #     lbw[i * nx + 1], ubw[i * nx + 1] = pl_val, pu_val
+    # for i in range(N):
+    #     ctrl_base = nx * N + i * nu
+    #     lbw[ctrl_base], ubw[ctrl_base] = -0.5, 0.5
+    #     lbw[ctrl_base + 1], ubw[ctrl_base + 1] = 0, 15000
+    #     lbw[ctrl_base + 2], ubw[ctrl_base + 2] = 0, 1
 
     for s in S_vars:
         g_track = track_con(s[0:2])
@@ -83,8 +93,8 @@ def setup_ocp(x_init: list, gear: int, dt: float, N: int, objective: str = 'cont
     ubg = [0] * nx + ubg
 
     # Terminal constraint: reach specific position at final state
-    terminal_x = X_end[-1][0] - 140
-    terminal_psi = X_end[-1][5] - 0
+    terminal_x = X_end[-1][0] - 140.0
+    terminal_psi = X_end[-1][5] - 0.0
     g.append(terminal_x)
     g.append(terminal_psi)
     lbg += [0.0, 0.0]
@@ -95,28 +105,18 @@ def setup_ocp(x_init: list, gear: int, dt: float, N: int, objective: str = 'cont
 
     # NLP formulation
     nlp_dict = {'x': w, 'f': J, 'g': g}
+    if solver == 'ipopt':
+        # Solver configuration
+        solver_opts = {
+            'ipopt.print_level': 5,
+            'print_time': True,
+            'ipopt.tol': 1e-6,  # main tol
+            'ipopt.constr_viol_tol': 1e-6,  # con tol
+            'ipopt.max_iter': 10000
+        }
+        solver = ca.nlpsol('solver', 'ipopt', nlp_dict, solver_opts)
+    else:
+        # Call custom SQP solver
+        solver = sqp_solver('solver', 'sqp', nlp_dict, lbx=lbw, ubx=ubw, lbg=lbg, ubg=ubg)
 
-    # Solver configuration
-    solver_opts = {
-        'ipopt.print_level': 5,
-        'print_time': True,
-        'ipopt.tol': 1e-4,  # main tol
-        'ipopt.constr_viol_tol': 1e-4,  # con tol
-        'ipopt.max_iter': 10000
-    }
-    solver = ca.nlpsol('solver', 'ipopt', nlp_dict, solver_opts)
-
-    # # Call custom SQP solver
-    # solver_opts = sqp_solver(
-    #     x=w,
-    #     f=J,
-    #     g=g,
-    #     lbx=None,
-    #     ubx=None,
-    #     lbg=lbg,
-    #     ubg=ubg,
-    #     max_iter=1000,
-    #     tol=1e-4
-    # )
-
-    return solver, nlp_dict, integrator, lbg, ubg
+    return solver, nlp_dict, integrator, lbg, ubg, lbw, ubw
