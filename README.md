@@ -39,5 +39,5 @@ project2_car_ocp/
 | Member           | Contribution                                                                                                                                     |
 |------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Yuefeiyang Li**   | Implemented the car dynamics model and RK4 integrator in `car_model.py`, and formulated the Bézier-based track constraints in `track_constraints.py` for Milestone 2. |
-| **Binheng Zheng**   | Developed the multiple shooting structure in `multiple_shooting.py` and assembled the full OCP in `ocp_formulation.py` for Milestone 3, including in-notebook markdown and documentation. |
+| **Binheng Zheng**   | Developed the multiple shooting structure in `multiple_shooting.py`, assembled the full OCP in `ocp_formulation.py` for Milestone 3, and in-notebook markdown and documentation. |
 | **Siqing Fan**      | Designed and implemented the custom SQP solver in `sqp_solver.py` for Milestone 4, and conducted warm-start tuning, final testing, and trajectory visualization in `main.ipynb`. |
