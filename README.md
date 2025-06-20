@@ -30,12 +30,12 @@ project2_car_ocp/
 ├── sqp_solver.py                 # Self-written SQP solver
 │
 └── utils.py                      # Plotting, solution unpacking, warm start
+```
 
 ---
 
 ## Team Contributions
 
-```text
 | Member     | Contribution                                                                                     |
 |------------|--------------------------------------------------------------------------------------------------|
 | **Fan, Siqing** | Built the custom SQP solver (`sqp_solver.py`) for Milestone 4, and handled initial guess generation, final testing, and result visualization in `main.ipynb`. |
